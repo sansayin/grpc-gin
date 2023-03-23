@@ -12,7 +12,12 @@ message Response {
   int64 result = 1; 
 }
 
+message ArrayResponse {
+    repeated Response items = 1;
+}
 service AddService {
   rpc Add(Request) returns (Response);
   rpc Multiply(Request) returns (Response);
+  rpc Stream(Request) returns (stream Response);
+  rpc Array(Request) returns (ArrayResponse);
 }

@@ -19,6 +19,8 @@ const _ = grpc.SupportPackageIsVersion7
 type AddServiceClient interface {
 	Add(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 	Multiply(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
+	Stream(ctx context.Context, in *Request, opts ...grpc.CallOption) (AddService_StreamClient, error)
+	Array(ctx context.Context, in *Request, opts ...grpc.CallOption) (*ArrayResponse, error)
 }
 
 type addServiceClient struct {
@@ -47,12 +49,55 @@ func (c *addServiceClient) Multiply(ctx context.Context, in *Request, opts ...gr
 	return out, nil
 }
 
+func (c *addServiceClient) Stream(ctx context.Context, in *Request, opts ...grpc.CallOption) (AddService_StreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AddService_serviceDesc.Streams[0], "/proto.AddService/Stream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &addServiceStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AddService_StreamClient interface {
+	Recv() (*Response, error)
+	grpc.ClientStream
+}
+
+type addServiceStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *addServiceStreamClient) Recv() (*Response, error) {
+	m := new(Response)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *addServiceClient) Array(ctx context.Context, in *Request, opts ...grpc.CallOption) (*ArrayResponse, error) {
+	out := new(ArrayResponse)
+	err := c.cc.Invoke(ctx, "/proto.AddService/Array", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AddServiceServer is the server API for AddService service.
 // All implementations must embed UnimplementedAddServiceServer
 // for forward compatibility
 type AddServiceServer interface {
 	Add(context.Context, *Request) (*Response, error)
 	Multiply(context.Context, *Request) (*Response, error)
+	Stream(*Request, AddService_StreamServer) error
+	Array(context.Context, *Request) (*ArrayResponse, error)
 	mustEmbedUnimplementedAddServiceServer()
 }
 
@@ -65,6 +110,12 @@ func (UnimplementedAddServiceServer) Add(context.Context, *Request) (*Response, 
 }
 func (UnimplementedAddServiceServer) Multiply(context.Context, *Request) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Multiply not implemented")
+}
+func (UnimplementedAddServiceServer) Stream(*Request, AddService_StreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method Stream not implemented")
+}
+func (UnimplementedAddServiceServer) Array(context.Context, *Request) (*ArrayResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Array not implemented")
 }
 func (UnimplementedAddServiceServer) mustEmbedUnimplementedAddServiceServer() {}
 
@@ -115,6 +166,45 @@ func _AddService_Multiply_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AddService_Stream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Request)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AddServiceServer).Stream(m, &addServiceStreamServer{stream})
+}
+
+type AddService_StreamServer interface {
+	Send(*Response) error
+	grpc.ServerStream
+}
+
+type addServiceStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *addServiceStreamServer) Send(m *Response) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _AddService_Array_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AddServiceServer).Array(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AddService/Array",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AddServiceServer).Array(ctx, req.(*Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _AddService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.AddService",
 	HandlerType: (*AddServiceServer)(nil),
@@ -127,7 +217,17 @@ var _AddService_serviceDesc = grpc.ServiceDesc{
 			MethodName: "Multiply",
 			Handler:    _AddService_Multiply_Handler,
 		},
+		{
+			MethodName: "Array",
+			Handler:    _AddService_Array_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Stream",
+			Handler:       _AddService_Stream_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "service.proto",
 }
